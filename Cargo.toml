@@ -1,0 +1,12 @@
+[package]
+name = "Music_Player"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+eframe = "0.32.3"
+rodio = "0.21.1"
+walkdir = "2"
+lofty = "0.22.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
