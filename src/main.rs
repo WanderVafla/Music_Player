@@ -1,6 +1,6 @@
-use std::{fs::{self, File}, io::{BufReader, Write}, path::PathBuf, time::Duration};
+use std::{fs::{self, File}, io::{BufReader, Write}, path::PathBuf, time::Duration, usize};
 
-use eframe::{egui::{self, Button, CentralPanel, ColorImage, CornerRadius, TextureHandle, TextureOptions}, epaint::tessellator::Path, glow::{MAX_DUAL_SOURCE_DRAW_BUFFERS, PRIMITIVES_SUBMITTED}};
+use eframe::{egui::{self, Button, CentralPanel, ColorImage, CornerRadius, Layout, TextureHandle, TextureOptions}, epaint::tessellator::Path, glow::{MAX_DUAL_SOURCE_DRAW_BUFFERS, PRIMITIVES_SUBMITTED}};
 
 use lofty::{file::{AudioFile, TaggedFileExt}, probe, read_from_path, tag::ItemKey};
 use rodio::{Decoder, OutputStream, OutputStreamBuilder, Sink};
@@ -30,10 +30,15 @@ fn main() -> Result<(), eframe::Error> {
         Box::new(|_cc| Ok(Box::new(MyApp::new()))),
     )
 }
-#[derive(Deserialize, Serialize, Debug)]
-struct Song_Data {
+
+struct AlbumsList {
+    album: String,
+    album_artist: String,
+}
+struct SongData {
     title: String,
     artist: String,
+    album: String,
     durration: Duration,
     path: PathBuf,
 }
@@ -42,7 +47,8 @@ struct MyApp {
     sink: rodio::Sink,
 
     current_index: usize,
-    playlist: Vec<Song_Data>,
+    playlist: Vec<SongData>,
+    albums_list: Vec<AlbumsList>,
     initialized: bool,
 
     current_durration: Duration,
@@ -58,8 +64,10 @@ impl MyApp {
         let stream = OutputStreamBuilder::open_default_stream().unwrap();
         let sink = rodio::Sink::connect_new(stream.mixer());
 
-        let current_index = 0;
+        let current_index = 0; 
         let playlist = vec![];
+        let albums_list = vec![];
+
         let initialized: bool = false;
 
         let current_durration = sink.get_pos();
@@ -70,7 +78,7 @@ impl MyApp {
         let volume = 1.0;
 
 
-        Self { stream, sink, current_index, playlist, initialized, current_durration, playing, loopped, random, volume }
+        Self { stream, sink, current_index, playlist, albums_list, initialized, current_durration, playing, loopped, random, volume }
    }
 
     fn load_song_queue(&mut self) {
@@ -84,19 +92,29 @@ impl MyApp {
             if let Ok(tagged_file) = tagged_file_result {
                 if let Some(tag) = tagged_file.primary_tag() {
                     let title: String = tag.get_string(&ItemKey::TrackTitle).unwrap_or("Unknow Title").to_string();                        
-                    // let album: String = tag.get_string(&ItemKey::AlbumTitle).unwrap_or("Unknow Title").to_string();                         
+                    let album: String = tag.get_string(&ItemKey::AlbumTitle).unwrap_or("Unknow Title").to_string();  
+                    let album_artist: String = tag.get_string(&ItemKey::AlbumArtist).unwrap_or("Unknow Title").to_string();                      
                     let artist: String = tag.get_string(&ItemKey::TrackArtist).unwrap_or("Unknow Title").to_string();
 
                     let durration = tagged_file.properties().duration();
 
-            let song_data = Song_Data {
+            let song_data = SongData {
                 title,
                 artist,
+                album: album.clone(),
                 durration,
                 path: path.clone()
             };
             self.playlist.push(song_data);
+
+
+            let album_list = AlbumsList {
+                album,
+                album_artist
+            };
+            self.albums_list.push(album_list);
             }
+
         }
     }
    
@@ -160,9 +178,11 @@ impl eframe::App for MyApp {
         .default_width(250.0)
         .show(ctx,|ui| {
 
-            if ui.add_sized([10.0, 10.0], egui::Button::new("")).clicked() {
-                println!("PORNO!!!!")
-            }
+            egui::TopBottomPanel::top("sort").show_inside(ui, |ui| {
+                if ui.button("").clicked() {
+
+                }
+            });
 
             egui::ScrollArea::vertical().show(ui, |ui| {
                 for (index, song_data_item) in self.playlist.iter_mut().enumerate() {
@@ -195,13 +215,15 @@ impl eframe::App for MyApp {
                 let max_durration = self.playlist[self.current_index].durration.as_secs_f32();
                 self.current_durration = self.sink.get_pos();
 
-                ui.horizontal(|ui| {
-                    ui.label(self.current_durration.as_secs().to_string());
-                    if ui.add(egui::Slider::new(&mut self.current_durration.as_secs_f32(),
-                    0.0..=max_durration).show_value(false)).changed() {
-                        println!("durration: {}", self.current_durration.as_secs());
-                    }
-                    ui.label(max_durration.to_string());
+                ui.with_layout(Layout::centered_and_justified(egui::Direction::TopDown) ,|ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(self.current_durration.as_secs().to_string());
+                        if ui.add(egui::Slider::new(&mut self.current_durration.as_secs_f32(),
+                        0.0..=max_durration).show_value(false)).changed() {
+                            println!("durration: {}", self.current_durration.as_secs());
+                        }
+                        ui.label(max_durration.to_string());
+                    });
                 });
                 if self.playing == true {
                     if self.sink.empty() == true {
@@ -217,37 +239,43 @@ impl eframe::App for MyApp {
             });
 
             egui::TopBottomPanel::bottom("PlaybackPanel").show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    if ui.add_sized([16.0, 16.0], egui::Checkbox::new(&mut self.loopped, "")).changed() {
-                        println!("loop: {}", self.loopped);
-                    }
+                ui.centered_and_justified(|ui| { 
+                        ui.horizontal(|ui| {
+                            if ui.add_sized([16.0, 16.0], egui::Checkbox::new(&mut self.loopped, "")).changed() {
+                                println!("loop: {}", self.loopped);
+                            }
+                            
+                            ui.horizontal(|ui| {
+                                if ui.button("prev").clicked() {
+                                    self.prev_song();
+                                }
+                                if ui.button("play").clicked() {
+                                    self.playback_music();
+                                }
+                                if ui.button("next").clicked() {
+                                    self.next_song();
+                                }
+                                
+                                if ui.add_sized([16.0, 16.0], egui::Checkbox::new(&mut self.random, ""))
+                            .changed() {
+                                println!("random: {}", self.random);
+                            }
 
-                    ui.horizontal(|ui| {
-                        if ui.button("prev").clicked() {
-                            self.prev_song();
-                        }
-                        if ui.button("play").clicked() {
-                            self.playback_music();
-                        }
-                        if ui.button("next").clicked() {
-                            self.next_song();
-                        }
-
-                    if ui.add_sized([16.0, 16.0], egui::Checkbox::new(&mut self.random, ""))
-                    .changed() {
-                        println!("random: {}", self.random);
-                        }
-
-                    });
-                    if ui.add(egui::Slider::new(&mut self.volume, 0.0..=10.0)
-                        .vertical()
-                        .show_value(false))
-                        .changed() {
-                            self.sink.set_volume(self.volume);
-                            println!("volume: {}", self.volume);
-                        }
+                            });
+                            ui.horizontal(|ui| {
+                                if ui.button("").clicked() {
+                                    self.volume = 0.0;
+                                    self.sink.set_volume(self.volume);
+                                }
+                                if ui.add(egui::Slider::new(&mut self.volume, 0.0..=10.0)
+                                .show_value(false))
+                                .changed() {
+                                    self.sink.set_volume(self.volume);
+                                    println!("volume: {}", self.volume);
+                                }
+                            });
+                        });
                 });
-            
         });
     });
 
