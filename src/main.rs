@@ -3,7 +3,7 @@ use std::{fs::{self, File}, io::{BufReader, Write}, path::PathBuf, time::Duratio
 use eframe::{egui::{self, Button, CentralPanel, ColorImage, CornerRadius, Layout, TextureHandle, TextureOptions}, epaint::tessellator::Path, glow::{MAX_DUAL_SOURCE_DRAW_BUFFERS, PRIMITIVES_SUBMITTED}};
 
 use lofty::{file::{AudioFile, TaggedFileExt}, probe, read_from_path, tag::ItemKey};
-use rodio::{Decoder, OutputStream, OutputStreamBuilder, Sink};
+use rodio::{queue, Decoder, OutputStream, OutputStreamBuilder, Sink};
 use serde::de::value::Error;
 
 use clap::{builder::Str, Parser};
@@ -12,11 +12,8 @@ use serde::{Deserialize, Serialize};
 
 use serde_json::from_str;
 
-use symphonia::core::audio::{AudioBufferRef, Signal};
-use symphonia::core::codecs::DecoderOptions;
-use symphonia::core::formats::FormatOptions;
-use symphonia::core::io::MediaSourceStream;
-use symphonia::default::{get_codecs, get_probe};
+use rand::seq::{index, SliceRandom};
+use rand::rng;
 
 fn main() -> Result<(), eframe::Error> {
     let mut options = eframe::NativeOptions::default(); // создаём по умолчанию
@@ -36,6 +33,7 @@ struct AlbumsList {
     album_artist: String,
 }
 struct SongData {
+    id: usize,
     title: String,
     artist: String,
     album: String,
@@ -47,7 +45,9 @@ struct MyApp {
     sink: rodio::Sink,
 
     current_index: usize,
+    random_index: usize,
     playlist: Vec<SongData>,
+    order_song: Vec<usize>,
     albums_list: Vec<AlbumsList>,
     initialized: bool,
 
@@ -57,6 +57,7 @@ struct MyApp {
     loopped: bool,
     random: bool,
     volume: f32,
+    show_panel: bool,
 }   
 
 impl MyApp {
@@ -64,8 +65,10 @@ impl MyApp {
         let stream = OutputStreamBuilder::open_default_stream().unwrap();
         let sink = rodio::Sink::connect_new(stream.mixer());
 
-        let current_index = 0; 
+        let current_index = 0;
+        let random_index = 0;
         let playlist = vec![];
+        let order_song = vec![];
         let albums_list = vec![];
 
         let initialized: bool = false;
@@ -78,12 +81,12 @@ impl MyApp {
         let volume = 1.0;
 
 
-        Self { stream, sink, current_index, playlist, albums_list, initialized, current_durration, playing, loopped, random, volume }
+        Self { stream, sink, current_index, random_index, playlist, albums_list, initialized, current_durration, playing, order_song, loopped, random, volume, show_panel: true }
    }
 
     fn load_song_queue(&mut self) {
         let file = PathBuf::from(r"C:\Users\User\Music\music");
-        
+        let mut id: usize = 0;
         for song in fs::read_dir(file).unwrap() {
             let song_entry = song.unwrap();
             let path = song_entry.path();
@@ -99,6 +102,7 @@ impl MyApp {
                     let durration = tagged_file.properties().duration();
 
             let song_data = SongData {
+                id,
                 title,
                 artist,
                 album: album.clone(),
@@ -106,7 +110,6 @@ impl MyApp {
                 path: path.clone()
             };
             self.playlist.push(song_data);
-
 
             let album_list = AlbumsList {
                 album,
@@ -116,8 +119,32 @@ impl MyApp {
             }
 
         }
+        println!("id load: {}", id);
+            id = id + 1;
     }
+    println!("album len: {}", self.albums_list.len());
    
+    }
+
+    fn do_order_song(&mut self) {
+        if self.random == true {
+            self.random_index = 0;
+
+            let mut rng = rng();
+
+            self.order_song = (0..self.playlist.len()).collect();
+            println!("{:?}", self.order_song);
+
+            self.order_song.shuffle(&mut rng);
+
+            if let Some(b) = self.order_song.iter().position(|&x| x == self.current_index) {
+                self.order_song.swap( 0, b);
+            }
+            println!("random: {:?}", self.order_song);
+
+        } else {
+            self.order_song.clear();
+        }
     }
 
     fn play_current(&mut self) {
@@ -142,26 +169,55 @@ impl MyApp {
     }
 
     fn prev_song(&mut self) {
-        if self.current_index == 0 {
-            self.play_current();
-            println!("Current index: {}", self.current_index);
+        if self.random == true {
+            if self.random_index != 0 {
+                self.random_index = self.random_index - 1;
+    
+                let take_index: usize = self.order_song[self.random_index];
+    
+                self.current_index = take_index;
+                println!("current index: {}", self.current_index);
+                self.play_current();
+                print!("random play")
+            } else {
+                self.play_current();
+            }
         } else {
-            self.current_index = self.current_index - 1;
-            self.play_current();
-            println!("Current index: {}", self.current_index);
-        } 
-        println!("prev!");
+            if self.current_index == 0 {
+                self.play_current();
+                println!("Current index: {}", self.current_index);
+            } else {
+                self.current_index = self.current_index - 1;
+                self.play_current();
+                println!("Current index: {}", self.current_index);
+            } 
+        }
     }
     fn next_song(&mut self) {
-        if self.current_index == self.playlist.len() {
-            self.play_current();
-            println!("Current index: {}", self.current_index);
+        if self.random == true {
+            if self.random_index != self.order_song.len() - 1 {
+                self.random_index = self.random_index + 1;
+    
+                let take_index: usize = self.order_song[self.random_index];
+    
+                self.current_index = take_index;
+                println!("current index: {}", self.current_index);
+                self.play_current();
+                print!("random play")
+            } else {
+                self.play_current();
+            }
         } else {
-            self.current_index = self.current_index + 1;
-            self.play_current();
-            println!("Current index: {}", self.current_index);
+            if self.current_index == self.playlist.len() - 1 {
+                self.play_current();
+                println!("Current index: {}", self.current_index);
+            } else {
+                self.current_index = self.current_index + 1;
+                self.play_current();
+                println!("Current index: {}", self.current_index);
+            }
         }
-        println!("next!");
+
     }
 }
 
@@ -169,6 +225,7 @@ impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         if self.initialized == false {
             self.load_song_queue();
+            self.do_order_song();
             self.initialized = true;
         } 
         let mut clicked_index: Option<usize> = None;
@@ -203,6 +260,7 @@ impl eframe::App for MyApp {
             self.current_index = index;
             println!("current song: {}", self.current_index);
             self.play_current();
+            self.do_order_song(); 
             }
 
         egui::CentralPanel::default().show(ctx, |ui|{
@@ -230,8 +288,7 @@ impl eframe::App for MyApp {
                         if self.loopped == true {
                             self.play_current();
                         } else {
-                            self.current_index = self.current_index + 1;
-                            self.play_current();
+                            self.next_song();
                         }
                         println!("song is finished");
                     }
@@ -258,7 +315,7 @@ impl eframe::App for MyApp {
                                 
                                 if ui.add_sized([16.0, 16.0], egui::Checkbox::new(&mut self.random, ""))
                             .changed() {
-                                println!("random: {}", self.random);
+                                self.do_order_song();
                             }
 
                             });
