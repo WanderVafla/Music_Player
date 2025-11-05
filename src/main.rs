@@ -15,6 +15,14 @@ use serde_json::from_str;
 use rand::seq::{index, SliceRandom};
 use rand::rng;
 
+mod widgets;
+use widgets::{ItemSong, ItemSongAction}; 
+
+mod json_manager;
+use json_manager::{save_songs_to_json};
+
+use crate::json_manager::Song;
+
 fn main() -> Result<(), eframe::Error> {
     let mut options = eframe::NativeOptions::default(); // создаём по умолчанию
 
@@ -27,16 +35,11 @@ fn main() -> Result<(), eframe::Error> {
         Box::new(|_cc| Ok(Box::new(MyApp::new()))),
     )
 }
-
-struct AlbumsList {
-    album: String,
-    album_artist: String,
-}
 struct SongData {
-    id: usize,
     title: String,
     artist: String,
     album: String,
+    album_artist: String,
     durration: Duration,
     path: PathBuf,
 }
@@ -48,7 +51,6 @@ struct MyApp {
     random_index: usize,
     playlist: Vec<SongData>,
     order_song: Vec<usize>,
-    albums_list: Vec<AlbumsList>,
     initialized: bool,
 
     current_durration: Duration,
@@ -57,7 +59,11 @@ struct MyApp {
     loopped: bool,
     random: bool,
     volume: f32,
-    show_panel: bool,
+
+    show_playlist: bool,
+    show_queue: bool,
+
+    tracks: Vec<ItemSong>,
 }   
 
 impl MyApp {
@@ -69,7 +75,6 @@ impl MyApp {
         let random_index = 0;
         let playlist = vec![];
         let order_song = vec![];
-        let albums_list = vec![];
 
         let initialized: bool = false;
 
@@ -80,13 +85,21 @@ impl MyApp {
         let random = false;
         let volume = 1.0;
 
+        let tracks = vec![];
 
-        Self { stream, sink, current_index, random_index, playlist, albums_list, initialized, current_durration, playing, order_song, loopped, random, volume, show_panel: true }
+        Self { stream, sink, current_index, random_index, playlist, initialized, current_durration, playing, order_song, loopped, random, volume, show_playlist: true, show_queue: false, tracks }
    }
+
+    fn load_track_list(&mut self) {
+        for (index, item) in self.playlist.iter().enumerate() {
+            // ItemSong::new(item.id, &item.title, &item.artist);
+            self.tracks.push(ItemSong::new(index, &item.title, &item.artist));
+
+        }
+    }
 
     fn load_song_queue(&mut self) {
         let file = PathBuf::from(r"C:\Users\User\Music\music");
-        let mut id: usize = 0;
         for song in fs::read_dir(file).unwrap() {
             let song_entry = song.unwrap();
             let path = song_entry.path();
@@ -95,35 +108,34 @@ impl MyApp {
             if let Ok(tagged_file) = tagged_file_result {
                 if let Some(tag) = tagged_file.primary_tag() {
                     let title: String = tag.get_string(&ItemKey::TrackTitle).unwrap_or("Unknow Title").to_string();                        
-                    let album: String = tag.get_string(&ItemKey::AlbumTitle).unwrap_or("Unknow Title").to_string();  
-                    let album_artist: String = tag.get_string(&ItemKey::AlbumArtist).unwrap_or("Unknow Title").to_string();                      
-                    let artist: String = tag.get_string(&ItemKey::TrackArtist).unwrap_or("Unknow Title").to_string();
+                    let album: String = tag.get_string(&ItemKey::AlbumTitle).unwrap_or("Unknow Album").to_string();  
+                    let album_artist: String = tag.get_string(&ItemKey::AlbumArtist).unwrap_or("Unknow AlbumArtist").to_string();                      
+                    let artist: String = tag.get_string(&ItemKey::TrackArtist).unwrap_or("Unknow Artist").to_string();
 
                     let durration = tagged_file.properties().duration();
 
+            // let song_data_json = json_manager::Song {
+            //     title,
+            //     artist,
+            //     album: album.clone(),
+            //     album_artist,
+            //     durration: durration.as_secs_f32(),
+            //     path: path.clone().to_string_lossy().to_string()
+            // };
+            // save_songs_to_json(song_data_json);
+
             let song_data = SongData {
-                id,
                 title,
                 artist,
                 album: album.clone(),
+                album_artist,
                 durration,
                 path: path.clone()
             };
             self.playlist.push(song_data);
-
-            let album_list = AlbumsList {
-                album,
-                album_artist
-            };
-            self.albums_list.push(album_list);
+                }
             }
-
         }
-        println!("id load: {}", id);
-            id = id + 1;
-    }
-    println!("album len: {}", self.albums_list.len());
-   
     }
 
     fn do_order_song(&mut self) {
@@ -156,15 +168,17 @@ impl MyApp {
         self.sink.stop();
         self.sink.append(source);
         self.sink.play();
-
+                    
         self.playing = true;
     }
 
-    fn playback_music(&self) {
+    fn playback_music(&mut self) {
         if self.sink.is_paused() == true {
             self.sink.play();
-        } else {
+            self.playing = true;
+        } else if self.sink.is_paused() == false {
             self.sink.pause();
+            self.playing = false;
         }
     }
 
@@ -225,6 +239,7 @@ impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         if self.initialized == false {
             self.load_song_queue();
+            self.load_track_list();
             self.do_order_song();
             self.initialized = true;
         } 
@@ -236,23 +251,89 @@ impl eframe::App for MyApp {
         .show(ctx,|ui| {
 
             egui::TopBottomPanel::top("sort").show_inside(ui, |ui| {
-                if ui.button("").clicked() {
-
-                }
+                ui.horizontal(|ui| {
+                    if ui.button("queue").clicked() {
+                        self.show_playlist = !self.show_playlist;
+                        self.show_queue = !self.show_queue;
+                        println!("show playlist: {}", self.show_playlist);
+                        println!("show queue: {}", self.show_queue);
+                    }
+                    if ui.button("add").clicked() {
+                        
+                    }
+                });
             });
 
             egui::ScrollArea::vertical().show(ui, |ui| {
-                for (index, song_data_item) in self.playlist.iter_mut().enumerate() {
-                    ui.horizontal(|ui| { 
-                        if ui.add_sized([64.0, 64.0], egui::Button::new("song").corner_radius(10)).clicked() {
-                            clicked_index = Some(index);
+                if self.show_playlist {
+                        for track in &mut self.tracks {
+                            let action_before = track.action.take();
+
+                            let track_id = track.id;
+                            if self.current_index == track_id {
+                                track.set_select(true);
+                                if self.playing {
+                                    track.set_playing(true);
+                                } else {
+                                    track.set_playing(false);
+                                }
+                            } else {
+                                track.set_select(false);
+                                track.set_playing(false);
+                            }
+
+                            ui.add(track);
+
+                            if let Some(action) = action_before {
+                                match action {
+                                    ItemSongAction::Play => {
+                                        clicked_index = Some(track_id);
+                                        if self.current_index == track_id {
+                                            println!("playing")
+                                        }
+                                        println!("Play: {}", track_id);
+                                    }
+                                    ItemSongAction::MoveToTitle => {
+                                        println!("Move to title")
+                                    }
+                                    ItemSongAction::MoveToArtist => {
+                                        println!("Move to artist")
+                                    }
+                                }
+                            }
                         }
-                        ui.vertical(|ui| {
-                            ui.label(&song_data_item.title);
-                            ui.label(&song_data_item.artist);
-                        });
-                    });
+
+                    // for (index, song_data_item) in self.playlist.iter_mut().enumerate() {
+                    //     ui.horizontal(|ui| { 
+                    //         if ui.add_sized([64.0, 64.0], egui::Button::new("song").corner_radius(10)).clicked() {
+                    //             clicked_index = Some(index);
+                    //         }
+                    //         ui.vertical(|ui| {
+                    //             ui.label(&song_data_item.title);
+                    //             ui.label(&song_data_item.artist);
+                    //         });
+                    //     });
+                    // }
                 }
+                
+                if self.show_queue {
+                    for index_song in self.order_song.clone() {
+                            let data = &self.playlist[index_song];
+                            ui.horizontal(|ui| { 
+                                if ui.add_sized([64.0, 64.0], egui::Button::new("song").corner_radius(10)).clicked() {
+                                    clicked_index = Some(index_song);
+                                }
+                                ui.vertical(|ui| {
+                                    if ui.label(data.title.clone()).clicked() {
+                                        println!("{}", data.title.clone())
+                                    };
+                                    ui.label(data.artist.clone());
+                                });
+                            });
+
+                        }
+                }
+
             });
         });
 
