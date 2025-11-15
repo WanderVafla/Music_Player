@@ -7,7 +7,7 @@ librers/framewors:
 
 What is alredy did:
 - Minimal GUI
-- Custom widgets (ItemSong)
+- Customs widgets (ItemSong)
 - Song list (not save, just from folder)
 - Reading metadata(not picture)
 - Music queue

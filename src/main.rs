@@ -4,19 +4,16 @@ use eframe::{egui::{self, Button, CentralPanel, ColorImage, CornerRadius, Layout
 
 use lofty::{file::{AudioFile, TaggedFileExt}, probe, read_from_path, tag::ItemKey};
 use rodio::{queue, Decoder, OutputStream, OutputStreamBuilder, Sink};
-use serde::de::value::Error;
 
-use clap::{builder::Str, Parser};
 
-use serde::{Deserialize, Serialize};
 
 use serde_json::from_str;
 
-use rand::seq::{index, SliceRandom};
+use rand::seq::{SliceRandom};
 use rand::rng;
 
 mod widgets;
-use widgets::{ItemSong, ItemSongAction}; 
+use widgets::{ItemSong, ItemSongAction, Playback}; 
 
 mod json_manager;
 use json_manager::{save_songs_to_json};
@@ -83,7 +80,7 @@ impl MyApp {
 
         let loopped = false;
         let random = false;
-        let volume = 1.0;
+        let volume = 4.0;
 
         let tracks = vec![];
 
@@ -98,13 +95,21 @@ impl MyApp {
         }
     }
 
-    fn load_song_queue(&mut self) {
-        let file = PathBuf::from(r"C:\Users\User\Music\music");
-        for song in fs::read_dir(file).unwrap() {
+    fn load_path(&self) -> Vec<PathBuf> {
+        let files = PathBuf::from(r"C:\Users\User\Music\music");
+        let mut paths: Vec<PathBuf> = vec![];
+        for song in fs::read_dir(files).unwrap() {
             let song_entry = song.unwrap();
             let path = song_entry.path();
+            paths.push(path);
+        }
+        return paths;
+    }
 
-            let tagged_file_result = read_from_path(&path);
+    fn load_song_queue(&mut self) {
+        for song in self.load_path().clone() {
+
+            let tagged_file_result = read_from_path(&song);
             if let Ok(tagged_file) = tagged_file_result {
                 if let Some(tag) = tagged_file.primary_tag() {
                     let title: String = tag.get_string(&ItemKey::TrackTitle).unwrap_or("Unknow Title").to_string();                        
@@ -130,7 +135,7 @@ impl MyApp {
                 album: album.clone(),
                 album_artist,
                 durration,
-                path: path.clone()
+                path: song.clone(),
             };
             self.playlist.push(song_data);
                 }
@@ -244,6 +249,7 @@ impl eframe::App for MyApp {
             self.initialized = true;
         } 
         let mut clicked_index: Option<usize> = None;
+        let mut play_or_pause: Option<usize> = None;
 
         egui::SidePanel::left("Playlist").resizable(false)
         .min_width(250.0)
@@ -288,10 +294,6 @@ impl eframe::App for MyApp {
                                 match action {
                                     ItemSongAction::Play => {
                                         clicked_index = Some(track_id);
-                                        if self.current_index == track_id {
-                                            println!("playing")
-                                        }
-                                        println!("Play: {}", track_id);
                                     }
                                     ItemSongAction::MoveToTitle => {
                                         println!("Move to title")
@@ -317,31 +319,39 @@ impl eframe::App for MyApp {
                 }
                 
                 if self.show_queue {
-                    for index_song in self.order_song.clone() {
-                            let data = &self.playlist[index_song];
-                            ui.horizontal(|ui| { 
-                                if ui.add_sized([64.0, 64.0], egui::Button::new("song").corner_radius(10)).clicked() {
-                                    clicked_index = Some(index_song);
-                                }
-                                ui.vertical(|ui| {
-                                    if ui.label(data.title.clone()).clicked() {
-                                        println!("{}", data.title.clone())
-                                    };
-                                    ui.label(data.artist.clone());
+                    if self.order_song.len() > 0 {
+                        for index_song in self.order_song.clone() {
+                                let data = &self.playlist[index_song];
+                                ui.horizontal(|ui| { 
+                                    if ui.add_sized([64.0, 64.0], egui::Button::new("song").corner_radius(10)).clicked() {
+                                        clicked_index = Some(index_song);
+                                    }
+                                    ui.vertical(|ui| {
+                                        if ui.label(data.title.clone()).clicked() {
+                                            println!("{}", data.title.clone())
+                                        };
+                                        ui.label(data.artist.clone());
+                                    });
                                 });
-                            });
-
-                        }
+    
+                            }
+                    } else {
+                        ui.label("No song");
+                    }
                 }
 
             });
         });
 
         if let Some(index) = clicked_index {
-            self.current_index = index;
-            println!("current song: {}", self.current_index);
-            self.play_current();
-            self.do_order_song(); 
+            if index != self.current_index {
+                self.current_index = index;
+                println!("current song: {}", self.current_index);
+                self.play_current();
+                self.do_order_song(); 
+            } else {
+                self.playback_music();
+            }
             }
 
         egui::CentralPanel::default().show(ctx, |ui|{
@@ -379,11 +389,13 @@ impl eframe::App for MyApp {
             egui::TopBottomPanel::bottom("PlaybackPanel").show(ctx, |ui| {
                 ui.centered_and_justified(|ui| { 
                         ui.horizontal(|ui| {
+                            // ui.add(Playback::new());
+
                             if ui.add_sized([16.0, 16.0], egui::Checkbox::new(&mut self.loopped, "")).changed() {
                                 println!("loop: {}", self.loopped);
                             }
                             
-                            ui.horizontal(|ui| {
+                            ui.horizontal(|ui| {  
                                 if ui.button("prev").clicked() {
                                     self.prev_song();
                                 }

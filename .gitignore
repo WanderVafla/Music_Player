@@ -6,3 +6,5 @@ pppp.rs
 charge_songs.rs
 compilation_song_data.rs
 /cache
+json_manager.rs
+playbacks.rs

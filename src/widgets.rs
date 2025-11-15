@@ -38,12 +38,11 @@ pub enum ItemSongAction {
 impl egui::Widget for &mut ItemSong {
     fn ui(self, ui: &mut Ui) -> Response {        
         let desired_size = vec2(ui.available_width(), 36.0);
-        let (rect, _response) = ui.allocate_exact_size(desired_size, Sense::hover());
+        let (rect, _response) = ui.allocate_exact_size(desired_size, Sense::click());
 
-        let visuals = &ui.visuals().widgets;
-        let bg_color = visuals.inactive.bg_fill;
+       
 
-        ui.painter().rect_filled(rect, 6.0, bg_color);
+        
 
         let button_rect = Rect::from_min_size(rect.min, vec2(36.0, rect.height()));
     
@@ -71,7 +70,23 @@ impl egui::Widget for &mut ItemSong {
         if artist_resp.clicked() {
             self.action = Some(ItemSongAction::MoveToArtist)
         }
+        
+        let visuals = &ui.visuals().widgets;
+        let mut bg_color = visuals.inactive.bg_fill;
 
+        if _response.hovered() {
+            bg_color = visuals.hovered.bg_fill;
+        } else if button_resp.hovered() {
+            bg_color = visuals.hovered.bg_fill;
+        } else if title_resp.hovered() {
+            bg_color = visuals.hovered.bg_fill;
+        } else if artist_resp.hovered() {
+            bg_color = visuals.hovered.bg_fill;
+        };
+
+        ui.painter().rect_filled(rect, 6.0, bg_color);
+        
+        
         ui.painter().rect_filled(button_rect, 4.0, Color32::GRAY);
         if self.is_playing == false {
             ui.painter().text(
@@ -116,7 +131,90 @@ impl egui::Widget for &mut ItemSong {
             FontId::proportional(14.0),
             Color32::GRAY,
         );
+        
+        
         _response
     }
     
+}
+
+
+pub struct Playback {
+    pub is_playing: bool,
+    pub is_looping: bool,
+    pub is_shuffing: bool,
+}
+
+impl Playback {
+    pub fn new() -> Self {
+        Self {
+            is_playing: false,
+            is_looping: false,
+            is_shuffing: false,
+        }
+    }
+}
+
+impl egui::Widget for Playback {
+    fn ui(self, ui: &mut Ui) -> Response {
+        let desired_size = vec2(ui.available_width(), 40.0);
+        let (_rect, _response) = ui.allocate_exact_size(desired_size, Sense::hover());
+        
+        let visuals = &ui.visuals().widgets;
+        let bg_color = visuals.inactive.bg_fill;
+
+        let loopper_button_rect = Rect::from_min_size(_rect.min, vec2(45.0, _rect.height()));
+
+        let playback_area = Rect::from_min_max(pos2(loopper_button_rect.max.x, _rect.min.y), pos2(-45.0 + _rect.max.x, _rect.max.y));
+        let with_playback_element: f32 = playback_area.width() / 3.0;
+
+        let prev_button_rect = Rect::from_min_size(playback_area.min, vec2(with_playback_element, _rect.height()));
+        // let play_button_rect = Rect::from_min_size(prev_button_rect.min, vec2(with_playback_element, _rect.height()));
+        // let next_button_rect = Rect::from_min_size(pos2(playback_area.max.x, playback_area.min.y), vec2(with_playback_element, _rect.height()));
+
+        let shuffer_button_rect = Rect::from_min_size(pos2(playback_area.max.x, _rect.min.y), vec2(45.0, _rect.height()));
+
+        
+        ui.painter().rect_filled(_rect, 6, bg_color);
+        ui.painter().rect_filled(playback_area, 0, Color32::BLUE);
+        ui.painter().text(
+            loopper_button_rect.center(),
+            Align2::CENTER_CENTER,
+            "🔁",
+            FontId::proportional(18.0),
+            Color32::WHITE);
+
+
+        ui.painter().text(
+            prev_button_rect.center(),
+            Align2::CENTER_CENTER,
+            "⏮",
+            FontId::proportional(18.0),
+            Color32::WHITE);
+
+        // ui.painter().text(
+        //     play_button_rect.center(),
+        //     Align2::CENTER_CENTER,
+        //     "▶",
+        //     FontId::proportional(18.0),
+        //     Color32::WHITE);
+
+        // ui.painter().text(
+        //     next_button_rect.center(),
+        //     Align2::CENTER_CENTER,
+        //     "⏭",
+        //     FontId::proportional(18.0),
+        //     Color32::WHITE);
+
+
+        ui.painter().text(
+            shuffer_button_rect.center(),
+            Align2::CENTER_CENTER,
+            "🔀",
+            FontId::proportional(18.0),
+            Color32::WHITE);
+        
+
+        _response
+    }
 }
