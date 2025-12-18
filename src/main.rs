@@ -1,8 +1,9 @@
-use std::{fs::{self, File}, io::{BufReader, Write}, path::PathBuf, time::Duration, usize};
+use std::{fs::{self, File}, io::{BufReader, Write}, path::PathBuf, ptr::null, time::Duration, usize};
 
-use eframe::{egui::{self, Button, CentralPanel, ColorImage, CornerRadius, Layout, TextureHandle, TextureOptions}, epaint::tessellator::Path, glow::{MAX_DUAL_SOURCE_DRAW_BUFFERS, PRIMITIVES_SUBMITTED}};
+use eframe::{egui::{self, Button, CentralPanel, ColorImage, CornerRadius, Image, Layout, TextureHandle, TextureOptions, Vec2}, epaint::tessellator::Path, glow::{MAX_DUAL_SOURCE_DRAW_BUFFERS, PRIMITIVES_SUBMITTED}};
 
-use lofty::{file::{AudioFile, TaggedFileExt}, probe, read_from_path, tag::ItemKey};
+use image::{ImageFormat, ImageReader};
+use lofty::{file::{AudioFile, TaggedFileExt}, picture::{MimeType, PictureType}, probe, read_from_path, tag::ItemKey};
 use rodio::{queue, Decoder, OutputStream, OutputStreamBuilder, Sink};
 
 
@@ -13,7 +14,7 @@ use rand::seq::{SliceRandom};
 use rand::rng;
 
 mod widgets;
-use widgets::{ItemSong, ItemSongAction, Playback}; 
+use widgets::{ItemSong, ItemSongGrid, ItemSongAction, Playback}; 
 
 mod json_manager;
 use json_manager::{save_songs_to_json};
@@ -39,6 +40,7 @@ struct SongData {
     album_artist: String,
     durration: Duration,
     path: PathBuf,
+    texture: Option<egui::TextureHandle>,
 }
 struct MyApp {
     stream: rodio::OutputStream,
@@ -59,8 +61,10 @@ struct MyApp {
 
     show_playlist: bool,
     show_queue: bool,
+    show_current_data: bool,
 
     tracks: Vec<ItemSong>,
+    
 }   
 
 impl MyApp {
@@ -84,19 +88,19 @@ impl MyApp {
 
         let tracks = vec![];
 
-        Self { stream, sink, current_index, random_index, playlist, initialized, current_durration, playing, order_song, loopped, random, volume, show_playlist: true, show_queue: false, tracks }
+        Self { stream, sink, current_index, random_index, playlist, initialized, current_durration, playing, order_song, loopped, random, volume, show_playlist: true, show_queue: false, show_current_data: true, tracks }
    }
 
     fn load_track_list(&mut self) {
         for (index, item) in self.playlist.iter().enumerate() {
             // ItemSong::new(item.id, &item.title, &item.artist);
-            self.tracks.push(ItemSong::new(index, &item.title, &item.artist));
+            self.tracks.push(ItemSong::new(index, &item.title, &item.artist, item.texture.clone()));
 
         }
     }
 
     fn load_path(&self) -> Vec<PathBuf> {
-        let files = PathBuf::from(r"C:\Users\User\Music\music");
+        let files = PathBuf::from(r"C:\\Users\\User\\Music\\music");
         let mut paths: Vec<PathBuf> = vec![];
         for song in fs::read_dir(files).unwrap() {
             let song_entry = song.unwrap();
@@ -106,7 +110,7 @@ impl MyApp {
         return paths;
     }
 
-    fn load_song_queue(&mut self) {
+    fn load_song_queue(&mut self, ctx: &egui::Context) {
         for song in self.load_path().clone() {
 
             let tagged_file_result = read_from_path(&song);
@@ -119,25 +123,55 @@ impl MyApp {
 
                     let durration = tagged_file.properties().duration();
 
-            // let song_data_json = json_manager::Song {
-            //     title,
-            //     artist,
-            //     album: album.clone(),
-            //     album_artist,
-            //     durration: durration.as_secs_f32(),
-            //     path: path.clone().to_string_lossy().to_string()
-            // };
-            // save_songs_to_json(song_data_json);
+                    let pic = tag.pictures().iter()
+                    .find(|p| p.pic_type() == PictureType::CoverFront);
 
-            let song_data = SongData {
-                title,
-                artist,
-                album: album.clone(),
-                album_artist,
-                durration,
-                path: song.clone(),
-            };
-            self.playlist.push(song_data);
+                    // let texture = if let Some(pic) = tag.pictures().iter()
+                    // .find(|p| p.pic_type() == PictureType::CoverFront) {
+
+                        
+                    //     let bytes = pic.data();
+                        
+                    //     let mime = pic.mime_type();
+                    //     let format = match pic.mime_type() {
+                    //         Some(MimeType::Jpeg) => ImageFormat::Jpeg,
+                    //         Some(MimeType::Png)  => ImageFormat::Png,
+                    //         _ => ImageFormat::Png,
+                    //     };
+                        
+                    //     println!("{:?}, {:?}", mime, format);
+                        
+                    //     if let Ok(img) = image::load_from_memory(bytes) {
+                    //         println!("ok");
+                    //         let img = img.to_rgba8();
+                    //         let size = [img.width() as usize, img.height() as usize];
+                    //         let pixels = img.into_raw();
+
+                    //         Some(ctx.load_texture(
+                    //         "cover",
+                    //         egui::ColorImage::from_rgba_unmultiplied(size, &pixels),
+                    //         Default::default(),
+                    //     ))
+
+                    //     } else {
+                    //         None
+                    //     }
+                    // } else {
+                    //     None
+                    // };
+
+                        
+
+                    let song_data = SongData {
+                        title,
+                        artist,
+                        album: album.clone(),
+                        album_artist,
+                        durration,
+                        path: song.clone(),
+                        texture: None,
+                    };
+                    self.playlist.push(song_data);
                 }
             }
         }
@@ -242,14 +276,14 @@ impl MyApp {
 
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        ctx.request_repaint();
         if self.initialized == false {
-            self.load_song_queue();
+            self.load_song_queue(ctx);
             self.load_track_list();
             self.do_order_song();
             self.initialized = true;
         } 
         let mut clicked_index: Option<usize> = None;
-        let mut play_or_pause: Option<usize> = None;
 
         egui::SidePanel::left("Playlist").resizable(false)
         .min_width(250.0)
@@ -257,6 +291,7 @@ impl eframe::App for MyApp {
         .show(ctx,|ui| {
 
             egui::TopBottomPanel::top("sort").show_inside(ui, |ui| {
+                
                 ui.horizontal(|ui| {
                     if ui.button("queue").clicked() {
                         self.show_playlist = !self.show_playlist;
@@ -265,7 +300,7 @@ impl eframe::App for MyApp {
                         println!("show queue: {}", self.show_queue);
                     }
                     if ui.button("add").clicked() {
-                        
+                        self.show_current_data = !self.show_current_data;
                     }
                 });
             });
@@ -355,36 +390,51 @@ impl eframe::App for MyApp {
             }
 
         egui::CentralPanel::default().show(ctx, |ui|{
-            ui.vertical(|ui| {
-                ui.label(self.playlist[self.current_index].title.clone());
-                ui.label(self.playlist[self.current_index].artist.clone());
-            });
+            if self.show_current_data {
 
-            ui.horizontal(|ui| {
-                let max_durration = self.playlist[self.current_index].durration.as_secs_f32();
-                self.current_durration = self.sink.get_pos();
+                if let Some(tex) = &self.playlist[self.current_index].texture {
+                    
+                    let width = 200.0;
+                    let height = 200.0; // высота автоматически
+                    ui.add(
+                        egui::Image::new(tex)
+                        .fit_to_exact_size(egui::Vec2::new(width, height))
+                    );
+            }
 
-                ui.with_layout(Layout::centered_and_justified(egui::Direction::TopDown) ,|ui| {
-                    ui.horizontal(|ui| {
-                        ui.label(self.current_durration.as_secs().to_string());
-                        if ui.add(egui::Slider::new(&mut self.current_durration.as_secs_f32(),
-                        0.0..=max_durration).show_value(false)).changed() {
-                            println!("durration: {}", self.current_durration.as_secs());
-                        }
-                        ui.label(max_durration.to_string());
-                    });
+                ui.vertical(|ui| {
+                    ui.label(self.playlist[self.current_index].title.clone());
+                    ui.label(self.playlist[self.current_index].artist.clone());
                 });
-                if self.playing == true {
-                    if self.sink.empty() == true {
-                        if self.loopped == true {
-                            self.play_current();
-                        } else {
-                            self.next_song();
+    
+                ui.horizontal(|ui| {
+                    let max_durration = self.playlist[self.current_index].durration.as_secs_f32();
+                    self.current_durration = self.sink.get_pos();
+    
+                    ui.with_layout(Layout::centered_and_justified(egui::Direction::TopDown) ,|ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(self.current_durration.as_secs().to_string());
+                            if ui.add(egui::Slider::new(&mut self.current_durration.as_secs_f32(),
+                            0.0..=max_durration).show_value(false)).changed() {
+                                println!("durration: {}", self.current_durration.as_secs());
+                            }
+                            ui.label(max_durration.to_string());
+                        });
+                    });
+                    if self.playing == true {
+                        if self.sink.empty() == true {
+                            if self.loopped == true {
+                                self.play_current();
+                            } else {
+                                self.next_song();
+                            }
+                            println!("song is finished");
                         }
-                        println!("song is finished");
                     }
-                }
-            });
+                });
+            } else {
+                // ui.add(&mut ItemSongGrid::new(self.current_index, "title", "aritst"));
+            }
 
             egui::TopBottomPanel::bottom("PlaybackPanel").show(ctx, |ui| {
                 ui.centered_and_justified(|ui| { 

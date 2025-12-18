@@ -1,8 +1,14 @@
 use clap::builder::Str;
 use eframe::egui::{self, *};
-#[derive(Clone)]
 
-pub struct ItemSong {
+#[derive(Clone)]
+pub enum ItemSongAction {
+    Play,
+    MoveToTitle,
+    MoveToArtist,
+}
+
+pub struct ItemSongGrid {
     pub id: usize,
     pub title: String,
     pub artist: String,
@@ -10,15 +16,16 @@ pub struct ItemSong {
     pub is_playing: bool,
     pub selected: bool,
 }
-impl ItemSong {
-    pub fn new(id: impl Into<usize>, title: impl Into<String>, artist: impl Into<String>) -> Self {
+
+impl ItemSongGrid {
+    pub fn new(id: impl Into<usize>, title: impl Into<String>, artist: impl Into<String>, image: impl Into<TextureHandle>) -> Self {
         Self { 
             id: id.into(),
             title: title.into(),
             artist: artist.into(),
             action: None,
             is_playing: false,
-            selected: false
+            selected: false,
             }
     }
     pub fn set_playing(&mut self, status: bool) {
@@ -28,25 +35,82 @@ impl ItemSong {
         self.selected = status;
     }
 }
-#[derive(Clone)]
-pub enum ItemSongAction {
-    Play,
-    MoveToTitle,
-    MoveToArtist,
-}
 
-impl egui::Widget for &mut ItemSong {
-    fn ui(self, ui: &mut Ui) -> Response {        
-        let desired_size = vec2(ui.available_width(), 36.0);
+impl egui::Widget for &mut ItemSongGrid {
+    fn ui(self, ui: &mut Ui) -> Response {
+        let desired_size = vec2(95.0, 150.0);
         let (rect, _response) = ui.allocate_exact_size(desired_size, Sense::click());
-
-       
+        
+        let button_rect = Rect::from_min_size(rect.min, vec2(rect.width(), 95.0));
 
         
+        let title_rect = Rect::from_min_max(pos2(button_rect.min.x, button_rect.max.y), rect.max / 2.0);
+        let artist_rect = Rect::from_min_max(pos2(title_rect.min.x, title_rect.max.y), rect.max);
 
-        let button_rect = Rect::from_min_size(rect.min, vec2(36.0, rect.height()));
-    
-        let text_area = Rect::from_min_max(pos2(button_rect.max.x + 8.0, rect.min.y), rect.max);
+        ui.painter().rect_filled(rect, 6.0, Color32::GRAY);
+        ui.painter().rect_filled(button_rect, 4.0, Color32::BROWN);
+
+        ui.painter().text(
+            title_rect.min + vec2(0.0, 0.0),
+            Align2::LEFT_TOP,
+            &self.title,
+            FontId::proportional(16.0),
+            Color32::WHITE,
+            );
+
+        ui.painter().text(
+            artist_rect.min + vec2(0.0, 0.0),
+            Align2::LEFT_TOP,
+            &self.artist,
+            FontId::proportional(14.0),
+            Color32::WHITE,
+            );
+
+        _response
+    }
+}
+
+
+pub struct ItemSong {
+    pub id: usize,
+    pub title: String,
+    pub artist: String,
+    pub action: Option<ItemSongAction>,
+    pub is_playing: bool,
+    pub selected: bool,
+    pub image: Option<egui::TextureHandle>,
+
+}
+impl ItemSong {
+    pub fn new(id: impl Into<usize>, title: impl Into<String>, artist: impl Into<String>, image: impl Into<Option<TextureHandle>>) -> Self {
+        Self { 
+            id: id.into(),
+            title: title.into(),
+            artist: artist.into(),
+            action: None,
+            is_playing: false,
+            selected: false,
+            image: image.into(),
+            }
+    }
+    pub fn set_playing(&mut self, status: bool) {
+        self.is_playing = status;
+    }
+    pub fn set_select(&mut self, status: bool) {
+        self.selected = status;
+    }
+}
+
+
+impl egui::Widget for &mut ItemSong {
+    fn ui(self, ui: &mut Ui) -> Response {
+        let width = 50.0;
+        let desired_size = vec2(ui.available_width(), width);
+        let (rect, _response) = ui.allocate_exact_size(desired_size, Sense::click());
+
+        let button_rect = Rect::from_min_size(rect.min, vec2(width, rect.height()));
+        
+        let text_area = Rect::from_min_max(pos2(width + 15.0, rect.min.y), rect.max);
         
         let text_height = text_area.height() / 2.0;
         let title_rect = Rect::from_min_max(text_area.min, pos2(text_area.max.x, text_area.min.y + text_height));
@@ -85,9 +149,17 @@ impl egui::Widget for &mut ItemSong {
         };
 
         ui.painter().rect_filled(rect, 6.0, bg_color);
-        
-        
-        ui.painter().rect_filled(button_rect, 4.0, Color32::GRAY);
+
+        if let Some(texture) = &self.image {
+            let img_size = Vec2::new(width, rect.height());
+            ui.put(
+                Rect::from_min_size(rect.min, vec2(width, rect.height())),
+                Image::new(texture).fit_to_exact_size(img_size)
+            );
+        } else {
+            ui.painter().rect_filled(button_rect, 8, Color32::GRAY);
+        }
+
         if self.is_playing == false {
             ui.painter().text(
                 button_rect.center(),
