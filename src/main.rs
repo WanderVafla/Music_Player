@@ -6,8 +6,6 @@ use image::{ImageFormat, ImageReader};
 use lofty::{file::{AudioFile, TaggedFileExt}, picture::{MimeType, PictureType}, probe, read_from_path, tag::ItemKey};
 use rodio::{queue, Decoder, OutputStream, OutputStreamBuilder, Sink};
 
-
-
 use serde_json::from_str;
 
 use rand::seq::{SliceRandom};
@@ -15,11 +13,6 @@ use rand::rng;
 
 mod widgets;
 use widgets::{ItemSong, ItemSongGrid, ItemSongAction, Playback}; 
-
-mod json_manager;
-use json_manager::{save_songs_to_json};
-
-use crate::json_manager::Song;
 
 fn main() -> Result<(), eframe::Error> {
     let mut options = eframe::NativeOptions::default(); // создаём по умолчанию
