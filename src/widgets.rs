@@ -1,5 +1,5 @@
-use clap::builder::Str;
 use eframe::egui::{self, *};
+use lofty::picture::MimeType;
 
 #[derive(Clone)]
 pub enum ItemSongAction {
@@ -78,11 +78,19 @@ pub struct ItemSong {
     pub action: Option<ItemSongAction>,
     pub is_playing: bool,
     pub selected: bool,
-    pub image: Option<egui::TextureHandle>,
+
+    pub texture: Option<egui::TextureHandle>,
+    pub cover_data: Option<Vec<u8>>,
+    pub cover_loaded: bool,
 
 }
 impl ItemSong {
-    pub fn new(id: impl Into<usize>, title: impl Into<String>, artist: impl Into<String>, image: impl Into<Option<TextureHandle>>) -> Self {
+    pub fn new(
+        id: impl Into<usize>,
+        title: impl Into<String>,
+        artist: impl Into<String>,
+        cover_data: Option<Vec<u8>>) -> Self {
+
         Self { 
             id: id.into(),
             title: title.into(),
@@ -90,7 +98,10 @@ impl ItemSong {
             action: None,
             is_playing: false,
             selected: false,
-            image: image.into(),
+            
+            texture: None,
+            cover_data,
+            cover_loaded: false,
             }
     }
     pub fn set_playing(&mut self, status: bool) {
@@ -104,7 +115,7 @@ impl ItemSong {
 
 impl egui::Widget for &mut ItemSong {
     fn ui(self, ui: &mut Ui) -> Response {
-        let width = 50.0;
+        let width = 46.0;
         let desired_size = vec2(ui.available_width(), width);
         let (rect, _response) = ui.allocate_exact_size(desired_size, Sense::click());
 
@@ -150,32 +161,44 @@ impl egui::Widget for &mut ItemSong {
 
         ui.painter().rect_filled(rect, 6.0, bg_color);
 
-        if let Some(texture) = &self.image {
-            let img_size = Vec2::new(width, rect.height());
-            ui.put(
-                Rect::from_min_size(rect.min, vec2(width, rect.height())),
-                Image::new(texture).fit_to_exact_size(img_size)
-            );
-        } else {
-            ui.painter().rect_filled(button_rect, 8, Color32::GRAY);
-        }
+        if self.texture.is_none() && self.cover_data.is_some() && !self.cover_loaded {
+            if let Some(bytes) = &self.cover_data {
+                if let Ok(mut tex) = image::load_from_memory(bytes) {
+                    tex = tex.resize(128, 128, image::imageops::FilterType::Triangle);
+                    let rgba = tex.to_rgba8();
+                    let size = [rgba.width() as usize, rgba.height() as usize];
+                    let pixels = rgba.into_raw();
 
-        if self.is_playing == false {
+                    let texture = ui.ctx().load_texture(
+                        format!("cover_{}", self.id),
+                        egui::ColorImage::from_rgba_unmultiplied(size, &pixels),
+                        egui::TextureOptions::default()
+                    );
+                    self.texture = Some(texture);
+                }
+            }
+            self.cover_loaded = true;
+            println!("{}, {}", self.id, self.cover_loaded);
+        };
+
+        if let Some(texture) = &self.texture {
+            ui.put(
+                button_rect,
+                Image::new(texture).fit_to_exact_size(Vec2::new(button_rect.width(), button_rect.height()))
+            );
+        } else if self.cover_data.is_none() {
+            ui.painter().rect_filled(button_rect, 8.0, Color32::DARK_GRAY);
             ui.painter().text(
                 button_rect.center(),
                 Align2::CENTER_CENTER,
-                "▶",
-                FontId::proportional(18.0),
-                Color32::WHITE,
+                "🎵",
+                FontId::proportional(30.0),
+                Color32::LIGHT_GRAY,
             );
         } else {
-            ui.painter().text(
-                button_rect.center(),
-                Align2::CENTER_CENTER,
-                "⏸",
-                FontId::proportional(18.0),
-                Color32::WHITE,
-            );
+            println!("loading");
+            ui.painter().rect_filled(button_rect, 8.0, Color32::DARK_GRAY);
+            ui.spinner();
         }
 
         if self.selected == false {
@@ -289,4 +312,23 @@ impl egui::Widget for Playback {
 
         _response
     }
+
+    
 }
+// pub struct Current_song_data {
+//     pub cover: TextureHandle
+// }
+
+// impl Current_song_data {
+//     pub fn new() -> Self {
+//         Self {
+           
+//         }
+//     }
+// }
+
+// impl egui::Widget for Current_song_data {
+//     fn ui(self, ui: &mut Ui) -> Response {
+//         todo!()
+//     }
+// }

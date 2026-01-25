@@ -8,8 +8,9 @@ librers/framewors:
 What is alredy did:
 - Minimal GUI
 - Customs widgets (ItemSong)
-- Song list (not save, just from folder)
-- Reading metadata(not picture)
+- Song list
+- Reading metadata
+- lazy load image
 - Music queue
 - playback (prev, play/pause, next, loop, shuffer, volume)
 - Slider traker durration current

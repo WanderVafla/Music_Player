@@ -1,0 +1,16 @@
+{
+    "search.exclude": {
+        "**/target": true,          // ← Главный виновник в Rust-проектах!
+        "**/node_modules": true,
+        "**/.git": true,
+        "**/build": true,
+        "**/dist": true
+    },
+    "files.exclude": {
+        "**/target": true,          // Скрывает target из Explorer
+        "**/.git": true
+    },
+    "files.watcherExclude": {
+        "**/target/**": true        // Не следит за изменениями в target
+    }
+}
