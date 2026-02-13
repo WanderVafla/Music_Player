@@ -8,3 +8,4 @@ compilation_song_data.rs
 /cache
 json_manager.rs
 playbacks.rs
+SongsList.json
