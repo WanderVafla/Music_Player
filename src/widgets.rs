@@ -7,89 +7,21 @@ use rodio::source::Function;
 // use crate::player::Player;
 
 #[derive(Clone)]
-pub enum ItemSongAction {
-    Play,
-    MoveToTitle,
-    MoveToArtist,
-}
-
-// pub struct ItemSongGrid {
-//     pub id: usize,
-//     pub title: String,
-//     pub artist: String,
-//     pub action: Option<ItemSongAction>,
-//     pub is_playing: bool,
-//     pub selected: bool,
-// }
-
-// impl ItemSongGrid {
-//     pub fn new(id: impl Into<usize>, title: impl Into<String>, artist: impl Into<String>, image: impl Into<TextureHandle>) -> Self {
-//         Self { 
-//             id: id.into(),
-//             title: title.into(),
-//             artist: artist.into(),
-//             action: None,
-//             is_playing: false,
-//             selected: false,
-//             }
-//     }
-//     pub fn set_playing(&mut self, status: bool) {
-//         self.is_playing = status;
-//     }
-//     pub fn set_select(&mut self, status: bool) {
-//         self.selected = status;
-//     }
-// }
-
-// impl egui::Widget for &mut ItemSongGrid {
-//     fn ui(self, ui: &mut Ui) -> Response {
-//         let desired_size = vec2(95.0, 150.0);
-//         let (rect, _response) = ui.allocate_exact_size(desired_size, Sense::click());
-        
-//         let button_rect = Rect::from_min_size(rect.min, vec2(rect.width(), 95.0));
-
-        
-//         let title_rect = Rect::from_min_max(pos2(button_rect.min.x, button_rect.max.y), rect.max / 2.0);
-//         let artist_rect = Rect::from_min_max(pos2(title_rect.min.x, title_rect.max.y), rect.max);
-
-//         ui.painter().rect_filled(rect, 6.0, Color32::GRAY);
-//         ui.painter().rect_filled(button_rect, 4.0, Color32::BROWN);
-
-//         ui.painter().text(
-//             title_rect.min + vec2(0.0, 0.0),
-//             Align2::LEFT_TOP,
-//             &self.title,
-//             FontId::proportional(16.0),
-//             Color32::WHITE,
-//             );
-
-//         ui.painter().text(
-//             artist_rect.min + vec2(0.0, 0.0),
-//             Align2::LEFT_TOP,
-//             &self.artist,
-//             FontId::proportional(14.0),
-//             Color32::WHITE,
-//             );
-
-//         _response
-//     }
-// }
 
 
 pub struct ItemSong {
     pub id: usize,
     pub title: String,
     pub artist: String,
-    pub action: Option<ItemSongAction>,
     pub is_playing: bool,
     pub selected: bool,
 
     pub texture: Option<egui::TextureHandle>,
     pub cover_data: Option<Vec<u8>>,
     pub cover_loaded: bool,
+}
 
     // pub on_play: Rc<dyn FnMut(usize)>
-}
 impl ItemSong {
     pub fn new(
         id: impl Into<usize>,
@@ -103,7 +35,6 @@ impl ItemSong {
             id: id.into(),
             title: title.into(),
             artist: artist.into(),
-            action: None,
             is_playing: false,
             selected: false,
             
@@ -128,8 +59,9 @@ impl egui::Widget for &mut ItemSong {
         let width = 46.0;
         let desired_size = vec2(ui.available_width(), width);
         let (rect, _response) = ui.allocate_exact_size(desired_size, Sense::click());
-
+    
         let button_rect = Rect::from_min_size(rect.min, vec2(width, rect.height()));
+        let button_resp = ui.interact(button_rect, ui.id().with(&self.id), Sense::click());
         
         let text_area = Rect::from_min_max(pos2(width + 15.0, rect.min.y), rect.max);
         
@@ -137,23 +69,6 @@ impl egui::Widget for &mut ItemSong {
         let title_rect = Rect::from_min_max(text_area.min, pos2(text_area.max.x, text_area.min.y + text_height));
         let artist_rect = Rect::from_min_max(pos2(text_area.min.x, text_area.min.y + text_height), text_area.max);
         
-        let button_resp = ui.interact(button_rect, ui.id().with(&self.id), Sense::click());
-        if button_resp.clicked() {
-            self.action = Some(ItemSongAction::Play);
-        }
-
-        let id_title: String = self.title.clone() + &self.id.clone().to_string(); 
-        let title_resp = ui.interact(title_rect, ui.id().with(id_title), Sense::click());
-        if title_resp.clicked() {
-            self.action = Some(ItemSongAction::MoveToTitle)
-        };
-        
-
-        let id_artist: String = self.artist.clone() + &self.id.clone().to_string();
-        let artist_resp = ui.interact(artist_rect, ui.id().with(id_artist), Sense::click());
-        if artist_resp.clicked() {
-            self.action = Some(ItemSongAction::MoveToArtist)
-        }
 
         let visuals = &ui.visuals().widgets;
         let mut bg_color = visuals.inactive.bg_fill;
@@ -162,11 +77,7 @@ impl egui::Widget for &mut ItemSong {
             bg_color = visuals.hovered.bg_fill;
         } else if button_resp.hovered() {
             bg_color = visuals.hovered.bg_fill;
-        } else if title_resp.hovered() {
-            bg_color = visuals.hovered.bg_fill;
-        } else if artist_resp.hovered() {
-            bg_color = visuals.hovered.bg_fill;
-        };
+        }
 
         ui.painter().rect_filled(rect, 6.0, bg_color);
 

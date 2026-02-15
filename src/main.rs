@@ -6,7 +6,7 @@ use serde_json::from_str;
 use rfd::FileDialog;
 
 mod widgets;
-use widgets::{ItemSong, ItemSongAction, Playback, Current_song_data}; 
+use widgets::{ItemSong}; 
 
 mod json_manager;
 use json_manager::add_song_to_json;
@@ -67,24 +67,21 @@ impl MyApp {
                 self.player.playlist.clear();
                 self.player.load_song_queue();
                 self.load_track_list();
-
-            }
-            
         }
+            
+    }
 
 }
 impl eframe::App for MyApp {
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         ctx.request_repaint();
+
         if self.initialized == false {
             self.player.load_song_queue();
             self.load_track_list();
             self.player.do_order_song();
             self.initialized = true;
         }
-         
-        let mut clicked_index: Option<usize> = None;
-        let mut current_track: Option<ItemSong> = None;
         
         egui::SidePanel::left("Playlist").resizable(false)
         .min_width(250.0)
@@ -114,161 +111,71 @@ impl eframe::App for MyApp {
                     |ui, row_range| {
                         if self.show_playlist {
                             for i in row_range {
-                                    ui.horizontal(|ui| {
-                                        let track = &mut self.tracks[i];
-                                        let action_before = track.action.take();
+                                ui.horizontal(|ui| {
+                                    let track = &mut self.tracks[i];
+                                    let index = track.id;
 
-                                        let track_id: usize = track.id;
-                                        if self.player.current_index == track_id {
-                                            track.set_select(true);
-                                            if self.player.playing {
-                                                track.set_playing(true);
-                                            } else {
-                                                track.set_playing(false);
-                                            }
+                                    if ui.add(track).clicked() {
+                                        if index != self.player.current_index {
+                                            self.player.current_index = index;
+                                            println!("current song: {}", self.player.current_index);
+                                            self.player.play_current();
+                                            self.player.do_order_song(); 
                                         } else {
-                                            track.set_select(false);
-                                            track.set_playing(false);
+                                            self.player.playback_music();
                                         }
+                                    }
 
-                                        ui.add(track);
-                                    });
-                                }
+                                });
                             }
-                        });
+                        }
+
+                        if self.show_queue {
+                             for i in self.player.order_song.clone() {
+                                ui.horizontal(|ui| {
+                                    let track = &mut self.tracks[i];
+                                    let index = track.id;
+
+                                    if ui.add(track).clicked() {
+                                        if index != self.player.current_index {
+                                            self.player.current_index = index;
+                                            println!("current song: {}", self.player.current_index);
+                                            self.player.play_current();
+                                            self.player.do_order_song(); 
+                                        } else {
+                                            self.player.playback_music();
+                                        }
+                                    }
+
+                                });
+                            }
+                        }
                     });
-        fn do_action() {
-            if let Some(action) = action_before {
-                match action {
-                    ItemSongAction::Play => {
-                        clicked_index = Some(track_id);
-                        println!("Play")
-                    }
-                    ItemSongAction::MoveToTitle => {
-                        println!("Move to title")
-                    }
-                    ItemSongAction::MoveToArtist => {
-                        println!("Move to artist")
-                    }
-                }
-            }
-        }
-        
-        if let Some(index) = clicked_index {
-            if index != self.player.current_index {
-                self.player.current_index = index;
-                println!("current song: {}", self.player.current_index);
-                self.player.play_current();
-                self.player.do_order_song(); 
-            } else {
-                self.player.playback_music();
-            }
-        }
-                            // if self.show_queue {
-                            //     for random_index in &self.order_song {
-                            //         let track = self.tracks[random_index];
-                            //         let action_before = track.action.take();
-                                    
-                            //         let track_id = track.id;
-                            //         if self.current_index == track_id {
-                            //             track.set_select(true);
-                            //             if self.playing {
-                            //                 track.set_playing(true);
-                            //             } else {
-                            //                 track.set_playing(false);
-                            //             }
-                            //         } else {
-                            //             track.set_select(false);
-                            //             track.set_playing(false);
-                            //         }
-                                    
-                                    
-                            //         if let Some(action) = action_before {
-                            //             match action {
-                            //                 ItemSongAction::Play => {
-                            //                     clicked_index = Some(track_id);
-                            //                 }
-                            //                 ItemSongAction::MoveToTitle => {
-                            //                     println!("Move to title")
-                            //                 }
-                            //                 ItemSongAction::MoveToArtist => {
-                            //                     println!("Move to artist")
-                            //                 }
-                            //             }
-                            //         }
-                            //     }
-                            // }
-                        });
-                            
-                        // if !self.show_queue {
-                        //     for i in self.order_song {
-                        //         let track = &mut self.tracks[i];
-                        //         let action_before = track.action.take();
-                                
-                        //         let track_id = track.id;
-                        //         if self.current_index == track_id {
-                        //             track.set_select(true);
-                        //             if self.playing {
-                        //                 track.set_playing(true);
-                        //             } else {
-                        //                 track.set_playing(false);
-                        //             }
-                        //         } else {
-                        //             track.set_select(false);
-                        //             track.set_playing(false);
-                        //         }
-                        //         ui.horizontal(|ui| {
-                        //             ui.add(track);
-                        //         });
-                        //     }
-                        // }
-                            
-                    
-                    // if !self.show_queue {
-                    //     if self.order_song.len() > 0 {
-                    //         for index_song in self.order_song.clone() {
-                    //             let data = &self.tracks[index_song];
-                    //             ui.horizontal(|ui| { 
-                    //                     if ui.add_sized([64.0, 64.0], egui::Button::new("song").corner_radius(10)).clicked() {
-                    //                         clicked_index = Some(index_song);
-                    //                     }
-                    //                     ui.vertical(|ui| {
-                    //                         if ui.label(data.title.clone()).clicked() {
-                    //                             println!("{}", data.title.clone())
-                    //                         };
-                    //                         ui.label(data.artist.clone());
-                    //                     });
-                    //                 });
-        
-                    //             }
-                    //     } else {
-                    //         ui.label("No song");
-                    //     }
-                    // }
+                });
             });
-        });
-
-
+            
+            
+            
             egui::CentralPanel::default().show(ctx, |ui|{
                 if self.show_current_data {
                     if !self.player.playlist.is_empty() {  
+                        
+                        ui.centered_and_justified(|ui| {
+                            ui.vertical_centered(|ui| {
 
-                            ui.centered_and_justified(|ui| {
-                                ui.vertical_centered(|ui| {
-
-                                    
-                                    let current_song = &mut self.player.playlist[self.player.current_index];
-                                    let size_current_cover: f32 = 250.0;
-                                    
+                                
+                                let current_song = &mut self.player.playlist[self.player.current_index];
+                                let size_current_cover: f32 = 250.0;
+                                
                                     if current_song.cover_texture_converted == false {
                                         if let Some(bytes) = &current_song.cover_data {
-                                        if let Ok(tex) = image::load_from_memory(bytes) {
-                                            let tex = tex.resize(500, 500, image::imageops::FilterType::Triangle);
+                                            if let Ok(tex) = image::load_from_memory(bytes) {
+                                                let tex = tex.resize(500, 500, image::imageops::FilterType::Triangle);
                                             let rgba = tex.to_rgba8();
-                                        let size = [rgba.width() as usize, rgba.height() as usize];
-                                        let pixels = rgba.into_raw();
-                                        
-                                        let texture: TextureHandle = ui.ctx().load_texture(
+                                            let size = [rgba.width() as usize, rgba.height() as usize];
+                                            let pixels = rgba.into_raw();
+                                            
+                                            let texture: TextureHandle = ui.ctx().load_texture(
                                             format!("cover"),
                                             egui::ColorImage::from_rgba_unmultiplied(size, &pixels),
                                             egui::TextureOptions::default()
@@ -295,7 +202,7 @@ impl eframe::App for MyApp {
                                 
                                 ui.heading(self.player.playlist[self.player.current_index].title.clone());
                                 ui.label(self.player.playlist[self.player.current_index].artist.clone());
-
+                                
                                 let max_duration = self.player.playlist[self.player.current_index].duration.as_secs_f32();
                                 self.player.current_duration = self.player.sink.get_pos();
                                 
@@ -312,7 +219,7 @@ impl eframe::App for MyApp {
                                         ui.label(format!("{:02}:{:02}", seconds_max / 60, seconds_max % 60));
                                         // ui.label("00:00:00");
                                     });
-
+                                    
                                 if self.player.playing == true {
                                     if self.player.sink.empty() == true {
                                         if self.player.looped == true {
@@ -337,14 +244,14 @@ impl eframe::App for MyApp {
                         ui.horizontal(|ui| {
 
                         ui.horizontal(|ui| {
-
+                            
                         if ui.add_sized([16.0, 16.0], egui::Checkbox::new(&mut self.player.looped, "")).changed() {
                             println!("loop: {}", self.player.looped);
                         }
                         
-                            ui.horizontal(|ui| {
-                                if ui.button("⏮").clicked() {
-                                    self.player.prev_song();
+                        ui.horizontal(|ui| {
+                            if ui.button("⏮").clicked() {
+                                self.player.prev_song();
                                 }
                                 if self.player.playing {
                                     if ui.button("⏸").clicked() {
@@ -360,8 +267,8 @@ impl eframe::App for MyApp {
                                 }
                             });
 
-                                if ui.add_sized([16.0, 16.0], egui::Checkbox::new(&mut self.player.random, ""))
-                                .changed() {
+                            if ui.add_sized([16.0, 16.0], egui::Checkbox::new(&mut self.player.random, ""))
+                            .changed() {
                                 self.player.do_order_song();
                             }
                         });
@@ -376,9 +283,9 @@ impl eframe::App for MyApp {
                                     self.player.sink.set_volume(self.player.volume);
                                     println!("volume: {}", self.player.volume);
                                 }
-                        });
+                            });
                             
-                });
+                        });
             });
                  
     }
